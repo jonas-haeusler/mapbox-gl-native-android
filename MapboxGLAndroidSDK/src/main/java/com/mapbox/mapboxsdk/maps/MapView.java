@@ -5,6 +5,8 @@ import android.graphics.Bitmap;
 import android.graphics.PointF;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
+import android.os.Parcel;
+import android.os.Parcelable;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -190,6 +192,11 @@ public class MapView extends FrameLayout implements NativeMapView.ViewCallback {
     // initialise MapboxMap
     if (savedInstanceState == null) {
       mapboxMap.initialise(context, mapboxMapOptions);
+
+      TelemetryDefinition telemetry = Mapbox.getTelemetry();
+      if (telemetry != null) {
+        telemetry.onAppUserTurnstileEvent();
+      }
     } else {
       mapboxMap.onRestoreInstanceState(savedInstanceState);
     }
@@ -294,18 +301,11 @@ public class MapView extends FrameLayout implements NativeMapView.ViewCallback {
    *
    * @param savedInstanceState Pass in the parent's savedInstanceState.
    * @see com.mapbox.mapboxsdk.Mapbox#getInstance(Context, String)
+   * @deprecated Calls to this method are no longer necessary. State is restored automatically for you.
    */
   @UiThread
-  public void onCreate(@Nullable Bundle savedInstanceState) {
-    if (savedInstanceState == null) {
-      TelemetryDefinition telemetry = Mapbox.getTelemetry();
-      if (telemetry != null) {
-        telemetry.onAppUserTurnstileEvent();
-      }
-    } else if (savedInstanceState.getBoolean(MapboxConstants.STATE_HAS_SAVED_STATE)) {
-      this.savedInstanceState = savedInstanceState;
-    }
-  }
+  @Deprecated
+  public void onCreate(@Nullable Bundle savedInstanceState) { }
 
   private void initialiseDrawingSurface(MapboxMapOptions options) {
     String localFontFamily = options.getLocalIdeographFontFamily();
@@ -362,13 +362,72 @@ public class MapView extends FrameLayout implements NativeMapView.ViewCallback {
    * or Fragment#onSaveInstanceState(Bundle).
    *
    * @param outState Pass in the parent's outState.
+   * @deprecated State is saved automatically for you as long as your {@link MapView} has an unique layout id.
    */
   @UiThread
-  public void onSaveInstanceState(@NonNull Bundle outState) {
+  @Deprecated
+  public void onSaveInstanceState(@NonNull Bundle outState) { }
+
+  @Nullable
+  @Override
+  protected Parcelable onSaveInstanceState() {
+    Parcelable superState = super.onSaveInstanceState();
     if (mapboxMap != null) {
-      outState.putBoolean(MapboxConstants.STATE_HAS_SAVED_STATE, true);
-      mapboxMap.onSaveInstanceState(outState);
+      Bundle savedMapState = new Bundle();
+      mapboxMap.onSaveInstanceState(savedMapState);
+      return new SavedState(superState, savedMapState);
+    } else {
+      return superState;
     }
+  }
+
+  @Override
+  protected void onRestoreInstanceState(Parcelable state) {
+    if (!(state instanceof BaseSavedState)) {
+      super.onRestoreInstanceState(state);
+      return;
+    }
+
+    SavedState savedState = (SavedState) state;
+    super.onRestoreInstanceState(savedState.getSuperState());
+    savedInstanceState = savedState.getSavedMapState();
+  }
+
+  protected static class SavedState extends BaseSavedState {
+
+    private final Bundle savedMapState;
+
+    SavedState(Parcelable superState, Bundle savedMapState) {
+      super(superState);
+      this.savedMapState = savedMapState;
+    }
+
+    SavedState(Parcel source) {
+      super(source);
+      savedMapState = source.readBundle(getClass().getClassLoader());
+    }
+
+    @Override
+    public void writeToParcel(Parcel out, int flags) {
+      super.writeToParcel(out, flags);
+      out.writeBundle(savedMapState);
+    }
+
+    Bundle getSavedMapState() {
+      return savedMapState;
+    }
+
+    public static final Parcelable.Creator<SavedState> CREATOR = new Creator<SavedState>() {
+      @Override
+      public SavedState createFromParcel(Parcel source) {
+        return new SavedState(source);
+      }
+
+      @Override
+      public SavedState[] newArray(int size) {
+        return new SavedState[size];
+      }
+    };
   }
 
   /**

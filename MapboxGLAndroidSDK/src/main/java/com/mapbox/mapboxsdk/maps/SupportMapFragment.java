@@ -10,6 +10,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
+import com.mapbox.mapboxsdk.R;
 import com.mapbox.mapboxsdk.utils.MapFragmentUtils;
 
 import java.util.ArrayList;
@@ -97,6 +98,7 @@ public class SupportMapFragment extends Fragment implements OnMapReadyCallback {
     super.onCreateView(inflater, container, savedInstanceState);
     Context context = inflater.getContext();
     map = new MapView(context, MapFragmentUtils.resolveArgs(context, getArguments()));
+    map.setId(R.id.mapbox_mapView);
     return map;
   }
 
